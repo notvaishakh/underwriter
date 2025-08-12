@@ -1,7 +1,11 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-import io
-import pdfplumber
+
+from readNcleanPdf import(
+    extractPageLines,
+    findRepeated,
+    removeRepeatedText
+)
 
 app = FastAPI()
 app.add_middleware(
@@ -13,12 +17,13 @@ app.add_middleware(
 @app.post("/readPDF")
 async def readPDF(file: UploadFile = File(...)):
     rawData = await file.read()
-    pages=[]
-    with pdfplumber.open(io.BytesIO(rawData)) as pdf:
-        for i, page in enumerate(pdf.pages):
-            text=page.extract_text() or ""
-            pages.append({
-                "pageNumber": i,
-                "text": text
-            })
-    return{"fileName": file.filename, "pageCount":len(pages), "pages":pages}
+    pages = extractPageLines(rawData)
+    repeated = findRepeated(pages)
+    cleanedPages = removeRepeatedText(pages,repeated["repeatedCanon"])
+    
+    return{
+        "fileName": file.filename, 
+        "pageCount":len(pages), 
+        "headerFooter":repeated,
+        "pages":cleanedPages
+    }
